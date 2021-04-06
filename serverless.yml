@@ -1,0 +1,117 @@
+service: Tracking
+
+plugins:
+  - serverless-dynamodb-local
+  - serverless-offline
+
+custom:
+  name: "alazar"
+
+  dynamodb:
+    start:
+      migrate: true
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: dev
+  region: eu-west-3
+  apiName: T1FileStore
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - { "Fn::GetAtt": ["FILESTOREDynamoDBTable", "Arn"] }
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+      Resource:
+        - "arn:aws:s3:::${self:custom.BUCKET}/*"
+  environment:
+    FILESTORE: ${self:custom.FILESTORE}
+    IS_OFFLINE: false
+    ACCESS_KEY_ID: ${file(./secrets.json):ACCESS_KEY_ID}
+    SECRET_KEY: ${file(./secrets.json):SECRET_KEY}
+
+functions:
+  app:
+    handler: index.handler
+    events:
+      - http: ANY /
+      - http: "ANY proxy"
+
+  login:
+    handler: index.handler
+    events:
+      - http: "POST /login"
+
+  driver:
+    handler: index.handler
+    events:
+      - http: "ANY /driver"
+
+  user:
+    handler: index.handler
+    events:
+      - http: "ANY /user"
+
+  company:
+    handler: index.handler
+    events:
+      - http: "ANY /company"
+
+  order:
+    handler: index.handler
+    events:
+      - http: "ANY /order"
+
+  invoice:
+    handler: index.handler
+    events:
+      - http: "ANY /invoice"
+
+resources:
+  Resources:
+    FILESTOREDynamoDBTable:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: fileId
+            AttributeType: S
+          - AttributeName: date
+            AttributeType: N
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: fileId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+        GlobalSecondaryIndexes:
+          - IndexName: "date_index"
+            KeySchema:
+              - AttributeName: date
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+          - IndexName: "user_index"
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        TableName: ${self:custom.FILESTORE}
